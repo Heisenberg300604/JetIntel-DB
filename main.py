@@ -1,9 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-import json
+from database import jet_collection, airport_collection
 import math
+from fastapi.staticfiles import StaticFiles
 
 app = FastAPI()
+app.mount("/images", StaticFiles(directory="static/images"), name="images")
 
 app.add_middleware(
     CORSMiddleware,
@@ -12,12 +14,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-with open("data/jets.json") as f:
-    jets = json.load(f)
-
-with open("data/airports.json") as f:
-    airports = json.load(f)
 
 # Haversine formula to calculate distance
 def calculate_distance(lat1, lon1, lat2, lon2):
@@ -35,7 +31,12 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     return 2 * R * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
 @app.get("/recommend")
-def recommend(departure: str, arrival: str, passengers: int, budget: float):
+async def recommend(departure: str, arrival: str, passengers: int, budget: float):
+
+    budget = budget*1000000
+
+    jets = await jet_collection.find().to_list(length=None)
+    airports = await airport_collection.find().to_list(length=None)
 
     dep = next((a for a in airports if a["iata"] == departure.upper()), None)
     arr = next((a for a in airports if a["iata"] == arrival.upper()), None)
@@ -49,6 +50,7 @@ def recommend(departure: str, arrival: str, passengers: int, budget: float):
 
     for jet in jets:
         if jet["range_nm"] >= distance and jet["max_passengers"] >= passengers:
+
             flight_time = distance / jet["cruise_knots"]
             total_cost = flight_time * jet["cost_per_hour"]
 
@@ -58,13 +60,20 @@ def recommend(departure: str, arrival: str, passengers: int, budget: float):
                     "manufacturer": jet["manufacturer"],
                     "flight_time_hours": round(flight_time, 2),
                     "distance_nm": round(distance, 0),
-                    "estimated_cost": round(total_cost, 0)
+                    "estimated_cost": round(total_cost, 0),
+                    "image_url": jet.get("image_url", "/images/def-jet.png")
                 })
 
     if not possible_jets:
         return {"message": "No jet fits this budget and route"}
 
-    # Sort by cheapest
     possible_jets.sort(key=lambda x: x["estimated_cost"])
 
     return possible_jets[0]
+
+@app.get("/jets")
+async def get_jets():
+    jets = await jet_collection.find().to_list(length=None)
+    for jet in jets:
+        jet["_id"] = str(jet["_id"])
+    return jets

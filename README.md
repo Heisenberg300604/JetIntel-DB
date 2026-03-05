@@ -313,7 +313,8 @@ Core dependencies (see `requirements.txt` for complete list):
 - `uvicorn>=0.41.0`
 - `motor>=3.7.1` (async MongoDB)
 - `pydantic>=2.12.5` (with email validation)
-- `python-jose[cryptography]>=3.5.0` (JWT)
+- `python-jose[cryptography]>=3.5.0` (JWT)  
+  ⚠️ **Do not install the unrelated `jose` package**; it’s a Python 2 library that will raise syntax errors.
 - `bcrypt>=4.2.1` (password hashing)
 - `python-dotenv>=1.2.2`
 
